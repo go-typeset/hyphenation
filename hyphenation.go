@@ -50,12 +50,25 @@ func (h *Hyphenator) AddPattern(p string) {
 // points returns the break positions in word: each value t means a hyphen is
 // allowed after the first t letters (so between word[t-1] and word[t]).
 func (h *Hyphenator) Points(word string) []int {
-	w := "." + strings.ToLower(word) + "."
+	// ⛔ RUNES, NOT BYTES, AND THE TWO USED TO BE MIXED HERE. The value array was
+	// built over the augmented word by BYTE index (len(w), w[i:j], val[i+k]) and
+	// read back by RUNE index (L := len([]rune(word)), val[t+1]). Those agree for
+	// exactly as long as every letter is one byte — every English word, and no
+	// French, German, Czech, Polish or Vietnamese one.
+	//
+	// Nothing failed loudly: val[t+1] simply read a different slot, so the word
+	// broke in the wrong place or not at all. Measured on the witness in
+	// utf8_test.go: Points("éaby") returned [3] where the identically-structured
+	// "xaby" returned [2] — one letter along, silently, for every accented word
+	// in a bibliography.
+	//
+	// A break position is a COUNT OF LETTERS, so everything here counts letters.
+	w := []rune("." + strings.ToLower(word) + ".")
 	n := len(w)
 	val := make([]int, n+1)
 	for i := 0; i < n; i++ {
 		for j := i + 1; j <= n; j++ {
-			v, ok := h.pat[w[i:j]]
+			v, ok := h.pat[string(w[i:j])]
 			if !ok {
 				continue
 			}
